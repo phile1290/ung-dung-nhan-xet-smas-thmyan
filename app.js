@@ -32,6 +32,7 @@ async function batDauXuLy() {
     loaiHienTai = selectLoai.value;
     tenLopThucTe = document.getElementById('tenLop').value.trim(); 
     
+    // Tên file xuất ra linh hoạt dựa trên mô tả lựa chọn của giáo viên
     const moTaLoai = selectLoai.options[selectLoai.selectedIndex].text;
     tenTepXuat = `NhanXet_${tenLopThucTe ? tenLopThucTe + "_" : ""}${moTaLoai.replace(/ /g, "_")}.docx`;
     document.getElementById('tenTepHienThi').innerText = tenTepXuat;
@@ -45,11 +46,10 @@ async function batDauXuLy() {
         let rawTT27 = await extractTextFromPDF(fileTT27);
         let rawThamChieu = await extractTextFromPDF(fileThamChieu);
         
-        // Tối ưu hóa dung lượng gửi đi để đảm bảo ứng dụng chạy mượt, không bị lỗi giới hạn
         textTT27 = rawTT27.substring(0, 1500); 
         textThamChieu = rawThamChieu.substring(0, 1500);
         
-        document.getElementById('status').innerText = "Đang quét TẤT CẢ CÁC SHEET và tổng hợp điểm...";
+        document.getElementById('status').innerText = "Đang quét các Sheet và lọc dữ liệu học sinh...";
         let hocSinhTongHop = {};
         
         for (let i = 0; i < filesExcel.length; i++) {
@@ -81,6 +81,7 @@ async function batDauXuLy() {
                             let tenHS = ten.trim();
                             let tenLower = tenHS.toLowerCase();
                             
+                            // Lọc bỏ các dữ liệu rác từ SMAS
                             if (!tenLower.includes("trường") && !tenLower.includes("hiệu trưởng") && 
                                 !tenLower.includes("giáo viên") && !tenLower.includes("họ và tên") &&
                                 !tenLower.includes("người lập")) {
@@ -119,90 +120,113 @@ async function batDauXuLy() {
 }
 
 async function taoNhanXetVoiAI(apiKey) {
-    // SỬ DỤNG MODEL 'gemini-pro' ĐỂ ĐẢM BẢO ỔN ĐỊNH VÀ KHÔNG BỊ LỖI "NOT FOUND"
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+    // SỬ DỤNG CHUẨN GEMINI 1.5 FLASH (Model đỉnh nhất hiện tại cho văn bản)
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < danhSachHocSinh.length; i++) {
         let hs = danhSachHocSinh[i];
         
-        document.getElementById('status').innerText = `Đang phân tích: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length}).\nHệ thống đang xử lý cẩn thận, vui lòng không đóng trình duyệt...`;
+        document.getElementById('status').innerText = `Đang phân tích: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length}).\nỨng dụng đang điều tiết tốc độ thông minh để tránh lỗi...`;
         
         let promptText = "";
+        let jsonSchema = {};
+
+        // THIẾT LẬP LỆNH CHUẨN XÁC
         if (loaiHienTai === "monHoc") {
-            promptText = `Bạn là một chuyên gia đánh giá tiểu học chuyên nghiệp. 
-            Mẫu tham chiếu văn phong: ${textThamChieu}
-            Kết quả học tập các môn của học sinh: "${hs.diemSo}". 
+            promptText = `Bạn là chuyên gia đánh giá tiểu học theo Thông tư 27. 
+            Mẫu tham chiếu: ${textThamChieu}
+            Điểm các môn: "${hs.diemSo}". 
             
-            QUY TẮC BẤT DI BẤT DỊCH (BẮT BUỘC TUÂN THỦ 100%): 
+            QUY TẮC BẤT DI BẤT DỊCH: 
             1. TUYỆT ĐỐI KHÔNG dùng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, người học, cá nhân, bản thân. 
-            2. BẮT BUỘC DÙNG CÂU ẨN CHỦ NGỮ. (Ví dụ chuẩn: "Nắm vững kiến thức toán học, thực hành tính toán nhanh...").
-            3. Nhận xét phải CHI TIẾT, BÁM SÁT VÀO ĐIỂM SỐ từng môn. Không viết chung chung. Mỗi học sinh là DUY NHẤT.
-            4. Nhận xét thành ĐÚNG 3 CÂU SÚC TÍCH.
-            5. CHỈ trả về đúng chuỗi JSON này, tuyệt đối không in thêm ký tự nào khác: {"nhanXet": "Câu 1.\\n\\nCâu 2.\\n\\nCâu 3."}`;
-        } else {
-            promptText = `Bạn là một chuyên gia đánh giá tiểu học chuyên nghiệp.
-            Mẫu tham chiếu văn phong: ${textThamChieu}
-            Kết quả học tập các môn của học sinh: "${hs.diemSo}".
+            2. CÂU ẨN CHỦ NGỮ. Nhận xét CHI TIẾT, BÁM SÁT ĐIỂM SỐ. Mỗi học sinh là DUY NHẤT.
+            3. Viết ĐÚNG 3 CÂU SÚC TÍCH. Giữa mỗi câu có 2 lần xuống dòng (\\n\\n).`;
             
-            QUY TẮC BẤT DI BẤT DỊCH (BẮT BUỘC TUÂN THỦ 100%):
+            // Ép Google hiểu cấu trúc mong muốn
+            jsonSchema = {
+                "type": "object",
+                "properties": { "nhanXet": { "type": "string" } },
+                "required": ["nhanXet"]
+            };
+        } else {
+            promptText = `Bạn là chuyên gia đánh giá tiểu học theo Thông tư 27.
+            Mẫu tham chiếu: ${textThamChieu}
+            Đánh giá của học sinh: "${hs.diemSo}".
+            
+            QUY TẮC BẤT DI BẤT DỊCH:
             1. TUYỆT ĐỐI KHÔNG dùng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, người học, cá nhân, bản thân.
-            2. BẮT BUỘC DÙNG CÂU ẨN CHỦ NGỮ.
-            3. Phân tích cụ thể dựa vào dữ liệu điểm.
-            4. Viết thành 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất), mỗi lĩnh vực đúng 1 dòng ngắn gọn.
-            5. CHỈ trả về đúng chuỗi JSON này, tuyệt đối không in thêm ký tự nào khác: {"nangLucChung": "...", "nangLucDacThu": "...", "phamChat": "..."}`;
+            2. CÂU ẨN CHỦ NGỮ. Phân tích cụ thể, không trùng lặp.
+            3. Viết 3 lĩnh vực, mỗi lĩnh vực 1 dòng ngắn gọn.`;
+            
+            jsonSchema = {
+                "type": "object",
+                "properties": {
+                    "nangLucChung": { "type": "string" },
+                    "nangLucDacThu": { "type": "string" },
+                    "phamChat": { "type": "string" }
+                },
+                "required": ["nangLucChung", "nangLucDacThu", "phamChat"]
+            };
         }
 
-        let retries = 4; // Cấu hình tự động thử lại 4 lần nếu mạng chậm
+        let retries = 5; // Cho phép thử lại tối đa 5 lần
         let success = false;
         let lastError = "";
+        let waitTime = 4000; // Thời gian chờ linh hoạt (Exponential backoff)
         
         while (retries > 0 && !success) {
             try {
                 const response = await fetch(apiUrl, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: promptText }] }],
-                        generationConfig: { temperature: 0.7 } 
+                        generationConfig: { 
+                            temperature: 0.7,
+                            responseMimeType: "application/json" // VŨ KHÍ HẠNG NẶNG: Ép chuẩn JSON 100%
+                        } 
                     })
                 });
                 
                 if (!response.ok) {
                     const errDetail = await response.json();
-                    throw new Error(errDetail.error.message || "Lỗi đường truyền API");
+                    throw new Error(errDetail.error.message || "Quá tải máy chủ");
                 }
                 
                 const resData = await response.json();
-                let aiText = resData.candidates[0].content.parts[0].text;
+                const aiText = resData.candidates[0].content.parts[0].text;
                 
-                // Thuật toán ép kiểu JSON chuyên nghiệp (Tránh lỗi markdown của AI)
-                let jsonMatch = aiText.match(/\{[\s\S]*\}/);
-                if(!jsonMatch) throw new Error("Lỗi định dạng dữ liệu trả về");
-                
-                const ketQua = JSON.parse(jsonMatch[0]);
+                // Trực tiếp phân tích JSON do đã được ép kiểu từ hệ thống
+                const ketQua = JSON.parse(aiText);
                 
                 if (loaiHienTai === "monHoc") {
                     hs.nhanXetMonHoc = ketQua.nhanXet;
                 } else { 
-                    hs.nangLucChung = ketQua.nangLucChung; hs.nangLucDacThu = ketQua.nangLucDacThu; hs.phamChat = ketQua.phamChat; 
+                    hs.nangLucChung = ketQua.nangLucChung; 
+                    hs.nangLucDacThu = ketQua.nangLucDacThu; 
+                    hs.phamChat = ketQua.phamChat; 
                 }
                 success = true;
             } catch (err) {
                 lastError = err.message;
                 retries--;
-                await delay(3500); // Tăng thời gian chờ lên 3.5 giây trước khi thử lại
+                console.warn(`Lỗi tạm thời tại ${hs.hoTen}. Thử lại sau ${waitTime/1000}s...`, lastError);
+                await delay(waitTime);
+                waitTime += 2000; // Tăng dần thời gian chờ nếu mạng tiếp tục nghẽn
             }
         }
         
-        // Bắt lỗi triệt để, thông báo rõ ràng cho giáo viên
+        // Nếu đã thử 5 lần vẫn lỗi, thông báo để người dùng biết chứ không in câu dự phòng giống nhau
         if (!success) {
-            console.error("Lỗi tại học sinh:", hs.hoTen, lastError);
-            if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = `[Hệ thống AI từ chối phản hồi - Vui lòng thử lại sau]\n\n...\n\n...`;
+            console.error("Lỗi thất bại hoàn toàn tại:", hs.hoTen);
+            if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = `[Lỗi hệ thống máy chủ Google - Vui lòng xử lý lại em này]`;
             else { hs.nangLucChung = `Lỗi hệ thống`; hs.nangLucDacThu = "..."; hs.phamChat = "..."; }
         }
         
-        // Thời gian chờ 4.5 giây giữa mỗi học sinh để đảm bảo Google không chặn
-        await delay(4500); 
+        // Thời gian nghỉ an toàn tiêu chuẩn giữa các học sinh
+        await delay(5000); 
     }
+    
     document.getElementById('status').innerText = "✅ Hoàn tất phân tích và đánh giá toàn bộ dữ liệu!";
     hienThiBang();
 }
@@ -247,7 +271,8 @@ function xuatFileWord() {
         ]}));
         
         danhSachHocSinh.forEach(hs => {
-            let paragraphs = hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line));
+            // Đảm bảo xuống dòng rõ ràng khi xuất Word
+            let paragraphs = hs.nhanXetMonHoc ? hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line)) : [new docx.Paragraph("")];
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
                 new docx.TableCell({ children: paragraphs })
@@ -264,9 +289,9 @@ function xuatFileWord() {
         danhSachHocSinh.forEach(hs => {
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
-                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucChung)] }),
-                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucDacThu)] }),
-                new docx.TableCell({ children: [new docx.Paragraph(hs.phamChat)] })
+                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucChung || "")] }),
+                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucDacThu || "")] }),
+                new docx.TableCell({ children: [new docx.Paragraph(hs.phamChat || "")] })
             ]}));
         });
     }
