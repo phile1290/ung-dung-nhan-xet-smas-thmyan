@@ -3,41 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="author" content="LÊ VĂN PHI">
+    <meta name="author" content="Lê Văn Phi">
     <title>Hệ Thống Tự Động Hóa Nhận Xét SMAS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/docx@7.3.0/build/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { 
-            margin: 0; padding: 20px; 
-            background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%);
-            min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
+        body { margin: 0; padding: 20px; background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .header-title { color: #0066cc; text-align: center; font-size: 26px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
         .sub-title { color: #7f8c8d; text-align: center; font-size: 15px; margin-bottom: 25px; }
         .card { background-color: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 30px; width: 100%; max-width: 600px; }
         .form-group { margin-bottom: 22px; }
-        
-        /* CSS kẻ khung và đổi màu chữ cho các mô tả nhập liệu */
-        label { 
-            font-weight: bold; 
-            color: #004085; 
-            background-color: #cce5ff; 
-            border: 1px solid #b8daff; 
-            padding: 8px 12px; 
-            border-radius: 6px; 
-            display: inline-block; 
-            margin-bottom: 10px; 
-            font-size: 14px;
-            width: fit-content;
-        }
-        
+        label { font-weight: bold; color: #004085; background-color: #cce5ff; border: 1px solid #b8daff; padding: 8px 12px; border-radius: 6px; display: inline-block; margin-bottom: 10px; font-size: 14px; width: fit-content; }
         .helper-text { font-size: 12px; color: #666; font-style: italic; margin-bottom: 8px; display: block; }
-        input[type="text"], input[type="password"], select, input[type="file"] { 
-            width: 100%; padding: 12px 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; outline: none; transition: 0.3s;
-        }
+        input[type="text"], input[type="password"], select, input[type="file"] { width: 100%; padding: 12px 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; outline: none; transition: 0.3s; }
         input:focus, select:focus { border-color: #0066cc; box-shadow: 0 0 5px rgba(0,102,204,0.3); }
         .btn-primary { background-color: #0066cc; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; padding: 15px; border-radius: 10px; margin-top: 10px; text-transform: uppercase; box-shadow: 0 4px 15px rgba(0,102,204,0.3); }
         .btn-primary:hover { background-color: #0052a3; }
@@ -82,8 +62,14 @@
 
         <div class="form-group">
             <label>5. Tải lên Bảng điểm SMAS (.xlsx, .xls):</label>
-            <span class="helper-text">Có thể chọn nhiều file. Hệ thống tự động lọc bỏ tên trường, tên giáo viên...</span>
+            <span class="helper-text">Có thể chọn nhiều file. Hệ thống tự động lọc dữ liệu.</span>
             <input type="file" id="fileUpload" accept=".xlsx, .xls" multiple>
+        </div>
+
+        <div class="form-group">
+            <label>6. Tên lớp học:</label>
+            <span class="helper-text">Nhập tên lớp (VD: 4D) để in hoa, căn giữa ở tiêu đề file Word.</span>
+            <input type="text" id="tenLop" placeholder="Nhập tên lớp...">
         </div>
 
         <button class="btn-primary" onclick="batDauXuLy()">Bắt Đầu Phân Tích Dữ Liệu</button>
