@@ -1,3 +1,6 @@
+// CỐ ĐỊNH ĐƯỜNG LINK WEB APP TẠI ĐÂY ĐỂ GIÁO VIÊN KHÔNG PHẢI NHẬP TRÊN GIAO DIỆN
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz-bzcsJlK5NmFJ0GhFDM-rqwHvHxeAzYUwZUHngcWt8Nvbez_OOioA5GKSqUgbAp19Dw/exec";
+
 let danhSachHocSinh = [];
 let thongTinThamKhao = {};
 let loaiHienTai = "";
@@ -19,7 +22,6 @@ function docFileExcel(file) {
 }
 
 async function batDauXuLy() {
-    const gasUrl = document.getElementById('gasUrl').value.trim();
     const apiKey = document.getElementById('apiKey').value.trim();
     const files = document.getElementById('fileUpload').files;
     const selectLoai = document.getElementById('loaiBangDiem');
@@ -33,19 +35,19 @@ async function batDauXuLy() {
     tenTepXuat = `NhanXet_${moTaKhoi}_${moTaLoai.replace(/ /g, "_")}.docx`;
     document.getElementById('tenTepHienThi').innerText = tenTepXuat;
 
-    if (!gasUrl || !apiKey || files.length === 0) {
-        return alert("Vui lòng điền đủ API Key, Link Web App và chọn file bảng điểm!");
+    if (!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("DÁN_ĐƯỜNG_LINK") || !apiKey || files.length === 0) {
+        return alert("Vui lòng cấu hình chính xác đường link Web App trong file mã nguồn, nhập API Key và chọn file bảng điểm!");
     }
 
-    document.getElementById('status').innerText = "Đang kết nối tải 11 tệp dữ liệu từ Google Drive...";
+    document.getElementById('status').innerText = "Đang kết nối tải dữ liệu cấu hình từ Google Drive...";
     
     try {
-        const response = await fetch(gasUrl);
+        const response = await fetch(GAS_WEB_APP_URL);
         const json = await response.json();
         if (json.status !== "success") throw new Error("Lỗi GAS");
         thongTinThamKhao = json.data;
     } catch (e) {
-        return alert("Lỗi tải cấu hình. Kiểm tra lại Link Web App.");
+        return alert("Lỗi kết nối cơ sở dữ liệu qua Web App. Vui lòng kiểm tra lại đường link cố định trong file app.js.");
     }
 
     document.getElementById('status').innerText = "Đang gộp và phân tích các file bảng điểm...";
@@ -53,7 +55,7 @@ async function batDauXuLy() {
     danhSachHocSinh = [];
     for (let i = 0; i < files.length; i++) {
         let rawData = await docFileExcel(files[i]);
-        for(let j = 1; j < rawData.length; j++) { // Bỏ qua dòng tiêu đề
+        for(let j = 1; j < rawData.length; j++) { 
             if(rawData[j][0]) {
                 danhSachHocSinh.push({
                     hoTen: rawData[j][0],
@@ -132,7 +134,6 @@ function hienThiBang() {
     if (loaiHienTai === 'monHoc') {
         html += '<tr><th style="width: 30%;">Họ và tên</th><th>Đánh giá môn học và HĐGD</th></tr>';
         danhSachHocSinh.forEach(hs => {
-            // Hiển thị white-space: pre-line sẽ tự động ngắt dòng và cách 1 ô khi gặp \n\n
             html += `<tr><td>${hs.hoTen}</td><td style="white-space: pre-line;">${hs.nhanXetMonHoc}</td></tr>`;
         });
     } else {
@@ -154,9 +155,7 @@ function xuatFileWord() {
         ]}));
         
         danhSachHocSinh.forEach(hs => {
-            // Tách theo \n. Các dòng trống (tạo ra từ \n\n) sẽ tự động biến thành docx.Paragraph rỗng => Tạo khoảng cách 1 ô chuẩn xác
             let paragraphs = hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line));
-            
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
                 new docx.TableCell({ children: paragraphs })

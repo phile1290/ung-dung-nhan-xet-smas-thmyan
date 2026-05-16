@@ -3,13 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="author" content="Lê Văn Phi">
+    <meta name="author" content="LÊ VĂN PHI">
     <title>Hệ Thống Đánh Giá Năng Lực Tại Nhà</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/docx@7.3.0/build/index.js"></script>
     <style>
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { margin: 0; padding: 20px; background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { 
+            margin: 0; padding: 20px; 
+            background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%);
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
         .header-title { color: #0066cc; text-align: center; font-size: 28px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
         .sub-title { color: #7f8c8d; text-align: center; font-size: 16px; margin-bottom: 25px; }
         .card { background-color: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 30px; width: 100%; max-width: 550px; }
@@ -50,10 +54,6 @@
         <div class="form-group">
             <label>API Key (Google AI Studio):</label>
             <input type="password" id="apiKey" placeholder="Nhập Gemini API Key...">
-        </div>
-        <div class="form-group">
-            <label>Link Web App (Google Apps Script):</label>
-            <input type="text" id="gasUrl" placeholder="Dán Web App URL...">
         </div>
         <div class="form-group">
             <label>Tải bảng điểm lên (.xlsx, .xls):</label>
