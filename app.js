@@ -6,7 +6,7 @@ let textTT27 = "";
 let textThamChieu = "";
 let loaiHienTai = "";
 let tenTepXuat = "";
-let tenLopThucTe = ""; // Biến mới lưu tên lớp
+let tenLopThucTe = ""; 
 
 async function extractTextFromPDF(file) {
     const arrayBuffer = await file.arrayBuffer();
@@ -30,21 +30,22 @@ async function batDauXuLy() {
     const selectLoai = document.getElementById('loaiBangDiem');
     
     loaiHienTai = selectLoai.value;
-    tenLopThucTe = document.getElementById('tenLop').value.trim(); // Lấy tên lớp
+    tenLopThucTe = document.getElementById('tenLop').value.trim(); 
     
     const moTaLoai = selectLoai.options[selectLoai.selectedIndex].text;
-    // Đổi tên file tải về có luôn tên lớp cho chuyên nghiệp
     tenTepXuat = `NhanXet_${tenLopThucTe ? tenLopThucTe + "_" : ""}${moTaLoai.replace(/ /g, "_")}.docx`;
     document.getElementById('tenTepHienThi').innerText = tenTepXuat;
 
     if (!apiKey || !fileTT27 || !fileThamChieu || filesExcel.length === 0 || !tenLopThucTe) {
-        return alert("Vui lòng điền đủ tất cả các trường, đặc biệt là TÊN LỚP và Tệp dữ liệu!");
+        return alert("Vui lòng điền đủ tất cả các trường (Tên lớp, API Key, và Tệp dữ liệu)!");
     }
 
     try {
         document.getElementById('status').innerText = "Đang trích xuất nội dung từ các file PDF...";
         let rawTT27 = await extractTextFromPDF(fileTT27);
         let rawThamChieu = await extractTextFromPDF(fileThamChieu);
+        
+        // Tối ưu hóa dung lượng gửi đi để đảm bảo ứng dụng chạy mượt, không bị lỗi giới hạn
         textTT27 = rawTT27.substring(0, 1500); 
         textThamChieu = rawThamChieu.substring(0, 1500);
         
@@ -118,41 +119,40 @@ async function batDauXuLy() {
 }
 
 async function taoNhanXetVoiAI(apiKey) {
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // SỬ DỤNG MODEL 'gemini-pro' ĐỂ ĐẢM BẢO ỔN ĐỊNH VÀ KHÔNG BỊ LỖI "NOT FOUND"
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < danhSachHocSinh.length; i++) {
         let hs = danhSachHocSinh[i];
         
-        document.getElementById('status').innerText = `Đang phân tích thông minh: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length}).\nĐang duy trì tốc độ an toàn để tránh bị Google chặn...`;
+        document.getElementById('status').innerText = `Đang phân tích: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length}).\nHệ thống đang xử lý cẩn thận, vui lòng không đóng trình duyệt...`;
         
         let promptText = "";
         if (loaiHienTai === "monHoc") {
-            promptText = `Đóng vai chuyên gia đánh giá tiểu học theo Thông tư 27. 
+            promptText = `Bạn là một chuyên gia đánh giá tiểu học chuyên nghiệp. 
             Mẫu tham chiếu văn phong: ${textThamChieu}
+            Kết quả học tập các môn của học sinh: "${hs.diemSo}". 
             
-            Đây là BẢNG ĐIỂM TỔNG HỢP CÁC MÔN của học sinh: "${hs.diemSo}". 
-            
-            QUY TẮC BẤT DI BẤT DỊCH: 
+            QUY TẮC BẤT DI BẤT DỊCH (BẮT BUỘC TUÂN THỦ 100%): 
             1. TUYỆT ĐỐI KHÔNG dùng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, người học, cá nhân, bản thân. 
-            2. BẮT BUỘC DÙNG CÂU ẨN CHỦ NGỮ.
-            3. Nhận xét phải RẤT CỤ THỂ theo điểm số từng môn, mỗi học sinh là DUY NHẤT. KHÔNG VIẾT CHUNG CHUNG.
-            4. Nhận xét thành ĐÚNG 3 CÂU. Giữa mỗi câu PHẢI CÓ ký tự xuống dòng kép (\\n\\n).
-            5. Trả về chuẩn JSON: {"nhanXet": "Câu 1.\\n\\nCâu 2.\\n\\nCâu 3."}.`;
+            2. BẮT BUỘC DÙNG CÂU ẨN CHỦ NGỮ. (Ví dụ chuẩn: "Nắm vững kiến thức toán học, thực hành tính toán nhanh...").
+            3. Nhận xét phải CHI TIẾT, BÁM SÁT VÀO ĐIỂM SỐ từng môn. Không viết chung chung. Mỗi học sinh là DUY NHẤT.
+            4. Nhận xét thành ĐÚNG 3 CÂU SÚC TÍCH.
+            5. CHỈ trả về đúng chuỗi JSON này, tuyệt đối không in thêm ký tự nào khác: {"nhanXet": "Câu 1.\\n\\nCâu 2.\\n\\nCâu 3."}`;
         } else {
-            promptText = `Đóng vai chuyên gia đánh giá tiểu học theo Thông tư 27.
+            promptText = `Bạn là một chuyên gia đánh giá tiểu học chuyên nghiệp.
             Mẫu tham chiếu văn phong: ${textThamChieu}
+            Kết quả học tập các môn của học sinh: "${hs.diemSo}".
             
-            Kết quả tổng hợp các môn của học sinh: "${hs.diemSo}".
-            
-            QUY TẮC BẤT DI BẤT DỊCH:
+            QUY TẮC BẤT DI BẤT DỊCH (BẮT BUỘC TUÂN THỦ 100%):
             1. TUYỆT ĐỐI KHÔNG dùng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, người học, cá nhân, bản thân.
             2. BẮT BUỘC DÙNG CÂU ẨN CHỦ NGỮ.
-            3. Phân tích cụ thể dựa vào dữ liệu điểm, đảm bảo không ai giống ai.
-            4. Viết thành 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất), mỗi lĩnh vực 1 dòng.
-            5. Trả về chuẩn JSON: {"nangLucChung": "...", "nangLucDacThu": "...", "phamChat": "..."}.`;
+            3. Phân tích cụ thể dựa vào dữ liệu điểm.
+            4. Viết thành 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất), mỗi lĩnh vực đúng 1 dòng ngắn gọn.
+            5. CHỈ trả về đúng chuỗi JSON này, tuyệt đối không in thêm ký tự nào khác: {"nangLucChung": "...", "nangLucDacThu": "...", "phamChat": "..."}`;
         }
 
-        let retries = 3; 
+        let retries = 4; // Cấu hình tự động thử lại 4 lần nếu mạng chậm
         let success = false;
         let lastError = "";
         
@@ -162,20 +162,21 @@ async function taoNhanXetVoiAI(apiKey) {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: promptText }] }],
-                        generationConfig: { temperature: 0.8 } 
+                        generationConfig: { temperature: 0.7 } 
                     })
                 });
                 
                 if (!response.ok) {
                     const errDetail = await response.json();
-                    throw new Error(errDetail.error.message || "Bị giới hạn tốc độ API");
+                    throw new Error(errDetail.error.message || "Lỗi đường truyền API");
                 }
                 
                 const resData = await response.json();
                 let aiText = resData.candidates[0].content.parts[0].text;
                 
+                // Thuật toán ép kiểu JSON chuyên nghiệp (Tránh lỗi markdown của AI)
                 let jsonMatch = aiText.match(/\{[\s\S]*\}/);
-                if(!jsonMatch) throw new Error("AI trả về sai định dạng JSON");
+                if(!jsonMatch) throw new Error("Lỗi định dạng dữ liệu trả về");
                 
                 const ketQua = JSON.parse(jsonMatch[0]);
                 
@@ -188,19 +189,21 @@ async function taoNhanXetVoiAI(apiKey) {
             } catch (err) {
                 lastError = err.message;
                 retries--;
-                await delay(3000);
+                await delay(3500); // Tăng thời gian chờ lên 3.5 giây trước khi thử lại
             }
         }
         
+        // Bắt lỗi triệt để, thông báo rõ ràng cho giáo viên
         if (!success) {
-            console.error("Lỗi:", lastError);
-            if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = `[Lỗi API: ${lastError}]\n\nHệ thống quá tải.\n\nVui lòng xử lý lại.`;
-            else { hs.nangLucChung = `Lỗi: ${lastError}`; hs.nangLucDacThu = "Không thể phân tích"; hs.phamChat = "Vui lòng xử lý lại"; }
+            console.error("Lỗi tại học sinh:", hs.hoTen, lastError);
+            if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = `[Hệ thống AI từ chối phản hồi - Vui lòng thử lại sau]\n\n...\n\n...`;
+            else { hs.nangLucChung = `Lỗi hệ thống`; hs.nangLucDacThu = "..."; hs.phamChat = "..."; }
         }
         
-        await delay(3500);
+        // Thời gian chờ 4.5 giây giữa mỗi học sinh để đảm bảo Google không chặn
+        await delay(4500); 
     }
-    document.getElementById('status').innerText = "Hoàn tất phân tích và đánh giá toàn bộ dữ liệu!";
+    document.getElementById('status').innerText = "✅ Hoàn tất phân tích và đánh giá toàn bộ dữ liệu!";
     hienThiBang();
 }
 
@@ -223,21 +226,19 @@ function hienThiBang() {
 }
 
 function xuatFileWord() {
-    // 1. TẠO TIÊU ĐỀ IN HOA, CĂN GIỮA, CHỮ TO
     const tieuDeLop = new docx.Paragraph({
         alignment: docx.AlignmentType.CENTER,
-        spacing: { after: 300 }, // Tạo khoảng cách trống phía dưới tiêu đề trước khi vào bảng
+        spacing: { after: 300 }, 
         children: [
             new docx.TextRun({
                 text: `NHẬN XÉT TỰ ĐỘNG LỚP ${tenLopThucTe}`.toUpperCase(),
                 bold: true,
-                size: 32, // 16pt (32 half-points)
+                size: 32, // 16pt 
                 font: "Times New Roman"
             })
         ]
     });
 
-    // 2. KHỞI TẠO BẢNG
     const rows = [];
     if (loaiHienTai === 'monHoc') {
         rows.push(new docx.TableRow({ children: [
@@ -271,8 +272,6 @@ function xuatFileWord() {
     }
     
     const table = new docx.Table({ rows: rows, width: { size: 100, type: docx.WidthType.PERCENTAGE } });
-    
-    // 3. XUẤT FILE GỒM TIÊU ĐỀ VÀ BẢNG
     const doc = new docx.Document({ sections: [{ children: [tieuDeLop, table] }] });
 
     docx.Packer.toBlob(doc).then(blob => {
