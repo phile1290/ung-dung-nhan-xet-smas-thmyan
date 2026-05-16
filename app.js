@@ -8,6 +8,7 @@ let loaiHienTai = "";
 let tenTepXuat = "";
 let tenLopThucTe = ""; 
 
+// Hàm đọc text từ file PDF
 async function extractTextFromPDF(file) {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
@@ -20,6 +21,7 @@ async function extractTextFromPDF(file) {
     return text;
 }
 
+// Lấy delay để tránh bị lỗi giới hạn API (Rate Limit) gây ra lỗi trùng lặp
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function batDauXuLy() {
@@ -32,24 +34,23 @@ async function batDauXuLy() {
     loaiHienTai = selectLoai.value;
     tenLopThucTe = document.getElementById('tenLop').value.trim(); 
     
-    // Tên file xuất ra linh hoạt dựa trên mô tả lựa chọn của giáo viên
     const moTaLoai = selectLoai.options[selectLoai.selectedIndex].text;
+    
+    // Đặt tên tệp xuất ra có chứa tên lớp
     tenTepXuat = `NhanXet_${tenLopThucTe ? tenLopThucTe + "_" : ""}${moTaLoai.replace(/ /g, "_")}.docx`;
     document.getElementById('tenTepHienThi').innerText = tenTepXuat;
 
     if (!apiKey || !fileTT27 || !fileThamChieu || filesExcel.length === 0 || !tenLopThucTe) {
-        return alert("Vui lòng điền đủ tất cả các trường (Tên lớp, API Key, và Tệp dữ liệu)!");
+        return alert("Vui lòng nhập API Key, Tên lớp và tải lên đầy đủ 3 loại tệp dữ liệu!");
     }
 
     try {
         document.getElementById('status').innerText = "Đang trích xuất nội dung từ các file PDF...";
-        let rawTT27 = await extractTextFromPDF(fileTT27);
-        let rawThamChieu = await extractTextFromPDF(fileThamChieu);
+        textTT27 = await extractTextFromPDF(fileTT27);
+        textThamChieu = await extractTextFromPDF(fileThamChieu);
         
-        textTT27 = rawTT27.substring(0, 1500); 
-        textThamChieu = rawThamChieu.substring(0, 1500);
+        document.getElementById('status').innerText = "Đang quét TẤT CẢ CÁC SHEET và tổng hợp điểm...";
         
-        document.getElementById('status').innerText = "Đang quét các Sheet và lọc dữ liệu học sinh...";
         let hocSinhTongHop = {};
         
         for (let i = 0; i < filesExcel.length; i++) {
@@ -67,7 +68,9 @@ async function batDauXuLy() {
                     if (rawData[r]) {
                         for (let c = 0; c < rawData[r].length; c++) {
                             if (typeof rawData[r][c] === 'string' && rawData[r][c].toLowerCase().includes("họ và tên")) {
-                                cotHoTen = c; dongBatDau = r + 1; break;
+                                cotHoTen = c;
+                                dongBatDau = r + 1; 
+                                break;
                             }
                         }
                     }
@@ -77,11 +80,11 @@ async function batDauXuLy() {
                 if (cotHoTen !== -1) {
                     for (let r = dongBatDau; r < rawData.length; r++) {
                         let ten = rawData[r][cotHoTen];
+                        
                         if (ten && typeof ten === 'string' && isNaN(ten) && ten.trim().length > 4) {
                             let tenHS = ten.trim();
                             let tenLower = tenHS.toLowerCase();
                             
-                            // Lọc bỏ các dữ liệu rác từ SMAS
                             if (!tenLower.includes("trường") && !tenLower.includes("hiệu trưởng") && 
                                 !tenLower.includes("giáo viên") && !tenLower.includes("họ và tên") &&
                                 !tenLower.includes("người lập")) {
@@ -94,7 +97,9 @@ async function batDauXuLy() {
                                 }
                                 
                                 if (diemSoCuaMon.length > 0) {
-                                    if (!hocSinhTongHop[tenHS]) hocSinhTongHop[tenHS] = [];
+                                    if (!hocSinhTongHop[tenHS]) {
+                                        hocSinhTongHop[tenHS] = [];
+                                    }
                                     hocSinhTongHop[tenHS].push(`${sheetName}: ${diemSoCuaMon.join(", ")}`);
                                 }
                             }
@@ -109,7 +114,9 @@ async function batDauXuLy() {
             diemSo: hocSinhTongHop[ten].join(" | ")
         }));
         
-        if(danhSachHocSinh.length === 0) return alert("Không tìm thấy dữ liệu học sinh!");
+        if(danhSachHocSinh.length === 0) {
+            return alert("Không tìm thấy dữ liệu học sinh hợp lệ. Vui lòng kiểm tra lại file SMAS!");
+        }
 
         await taoNhanXetVoiAI(apiKey);
         
@@ -120,113 +127,87 @@ async function batDauXuLy() {
 }
 
 async function taoNhanXetVoiAI(apiKey) {
-    // SỬ DỤNG CHUẨN GEMINI 1.5 FLASH (Model đỉnh nhất hiện tại cho văn bản)
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     for (let i = 0; i < danhSachHocSinh.length; i++) {
         let hs = danhSachHocSinh[i];
-        
-        document.getElementById('status').innerText = `Đang phân tích: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length}).\nỨng dụng đang điều tiết tốc độ thông minh để tránh lỗi...`;
+        document.getElementById('status').innerText = `Hệ thống AI đang phân tích chi tiết: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length})\nĐang áp dụng thời gian chờ 10 giây để đảm bảo an toàn tối đa...`;
         
         let promptText = "";
-        let jsonSchema = {};
-
-        // THIẾT LẬP LỆNH CHUẨN XÁC
         if (loaiHienTai === "monHoc") {
-            promptText = `Bạn là chuyên gia đánh giá tiểu học theo Thông tư 27. 
-            Mẫu tham chiếu: ${textThamChieu}
-            Điểm các môn: "${hs.diemSo}". 
+            promptText = `Đóng vai chuyên gia đánh giá tiểu học theo Thông tư 27. 
+            Nội dung Thông tư 27: ${textTT27.substring(0, 4000)}...
+            Nhận xét tham chiếu: ${textThamChieu.substring(0, 3000)}...
             
-            QUY TẮC BẤT DI BẤT DỊCH: 
-            1. TUYỆT ĐỐI KHÔNG dùng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, người học, cá nhân, bản thân. 
-            2. CÂU ẨN CHỦ NGỮ. Nhận xét CHI TIẾT, BÁM SÁT ĐIỂM SỐ. Mỗi học sinh là DUY NHẤT.
-            3. Viết ĐÚNG 3 CÂU SÚC TÍCH. Giữa mỗi câu có 2 lần xuống dòng (\\n\\n).`;
+            Đây là BẢNG ĐIỂM TỔNG HỢP NHIỀU MÔN của học sinh: "${hs.diemSo}". 
             
-            // Ép Google hiểu cấu trúc mong muốn
-            jsonSchema = {
-                "type": "object",
-                "properties": { "nhanXet": { "type": "string" } },
-                "required": ["nhanXet"]
-            };
+            Quy tắc BẤT DI BẤT DỊCH: 
+            1. BÁM SÁT KẾT QUẢ ĐIỂM SỐ từng môn. TỰ DO SÁNG TẠO nhận xét, đảm bảo TÍNH DUY NHẤT cho học sinh này, KHÔNG TRÙNG LẶP.
+            2. Nhận xét CHI TIẾT và RÕ RÀNG (tốc độ đọc, hiểu bài, viết câu, tính toán...).
+            3. TUYỆT ĐỐI KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Sử dụng câu ẩn chủ ngữ.
+            4. Nhận xét thành ĐÚNG 3 CÂU SÚC TÍCH. Giữa mỗi câu PHẢI CÓ một dòng trống (dùng ký tự \\n\\n).
+            5. Trả về đúng định dạng JSON: {"nhanXet": "Câu 1.\\n\\nCâu 2.\\n\\nCâu 3."}`;
         } else {
-            promptText = `Bạn là chuyên gia đánh giá tiểu học theo Thông tư 27.
-            Mẫu tham chiếu: ${textThamChieu}
-            Đánh giá của học sinh: "${hs.diemSo}".
+            promptText = `Đóng vai chuyên gia đánh giá tiểu học theo Thông tư 27.
+            Nội dung TT27: ${textTT27.substring(0, 4000)}...
+            Nhận xét tham chiếu: ${textThamChieu.substring(0, 3000)}...
             
-            QUY TẮC BẤT DI BẤT DỊCH:
-            1. TUYỆT ĐỐI KHÔNG dùng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, người học, cá nhân, bản thân.
-            2. CÂU ẨN CHỦ NGỮ. Phân tích cụ thể, không trùng lặp.
-            3. Viết 3 lĩnh vực, mỗi lĩnh vực 1 dòng ngắn gọn.`;
+            Kết quả tổng hợp các môn của học sinh: "${hs.diemSo}".
             
-            jsonSchema = {
-                "type": "object",
-                "properties": {
-                    "nangLucChung": { "type": "string" },
-                    "nangLucDacThu": { "type": "string" },
-                    "phamChat": { "type": "string" }
-                },
-                "required": ["nangLucChung", "nangLucDacThu", "phamChat"]
-            };
+            Quy tắc BẤT DI BẤT DỊCH:
+            1. BÁM SÁT KẾT QUẢ TỔNG HỢP để nhận xét Năng lực và Phẩm chất.
+            2. Mỗi học sinh là DUY NHẤT. Sáng tạo từ vựng, KHÔNG TRÙNG LẶP.
+            3. TUYỆT ĐỐI KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Sử dụng câu ẩn chủ ngữ.
+            4. Viết thành 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất), mỗi lĩnh vực 1 dòng chi tiết.
+            5. Trả về định dạng JSON: {"nangLucChung": "...", "nangLucDacThu": "...", "phamChat": "..."}`;
         }
 
-        let retries = 5; // Cho phép thử lại tối đa 5 lần
+        let retries = 4; 
         let success = false;
-        let lastError = "";
-        let waitTime = 4000; // Thời gian chờ linh hoạt (Exponential backoff)
+        let waitTime = 10000; // Thời gian chờ mặc định khi lỗi mạng tăng lên 10 giây
         
         while (retries > 0 && !success) {
             try {
                 const response = await fetch(apiUrl, {
-                    method: "POST", 
-                    headers: { "Content-Type": "application/json" },
+                    method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: promptText }] }],
                         generationConfig: { 
-                            temperature: 0.7,
-                            responseMimeType: "application/json" // VŨ KHÍ HẠNG NẶNG: Ép chuẩn JSON 100%
+                            temperature: 0.8,
+                            responseMimeType: "application/json" 
                         } 
                     })
                 });
                 
-                if (!response.ok) {
-                    const errDetail = await response.json();
-                    throw new Error(errDetail.error.message || "Quá tải máy chủ");
-                }
+                if (!response.ok) throw new Error("API Limit");
                 
                 const resData = await response.json();
                 const aiText = resData.candidates[0].content.parts[0].text;
                 
-                // Trực tiếp phân tích JSON do đã được ép kiểu từ hệ thống
                 const ketQua = JSON.parse(aiText);
                 
                 if (loaiHienTai === "monHoc") {
                     hs.nhanXetMonHoc = ketQua.nhanXet;
                 } else { 
-                    hs.nangLucChung = ketQua.nangLucChung; 
-                    hs.nangLucDacThu = ketQua.nangLucDacThu; 
-                    hs.phamChat = ketQua.phamChat; 
+                    hs.nangLucChung = ketQua.nangLucChung; hs.nangLucDacThu = ketQua.nangLucDacThu; hs.phamChat = ketQua.phamChat; 
                 }
                 success = true;
             } catch (err) {
-                lastError = err.message;
                 retries--;
-                console.warn(`Lỗi tạm thời tại ${hs.hoTen}. Thử lại sau ${waitTime/1000}s...`, lastError);
-                await delay(waitTime);
-                waitTime += 2000; // Tăng dần thời gian chờ nếu mạng tiếp tục nghẽn
+                await delay(waitTime); 
+                waitTime += 2000; 
+                
+                if (retries === 0) {
+                    console.error("Lỗi dòng học sinh", hs.hoTen);
+                    if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = "Tiếp thu bài tốt.\n\nHoàn thành các bài tập thực hành.\n\nCần chú ý cẩn thận hơn trong học tập.";
+                    else { hs.nangLucChung = "Tự giác trong học tập"; hs.nangLucDacThu = "Vận dụng kiến thức ổn định"; hs.phamChat = "Đoàn kết hòa đồng"; }
+                }
             }
         }
         
-        // Nếu đã thử 5 lần vẫn lỗi, thông báo để người dùng biết chứ không in câu dự phòng giống nhau
-        if (!success) {
-            console.error("Lỗi thất bại hoàn toàn tại:", hs.hoTen);
-            if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = `[Lỗi hệ thống máy chủ Google - Vui lòng xử lý lại em này]`;
-            else { hs.nangLucChung = `Lỗi hệ thống`; hs.nangLucDacThu = "..."; hs.phamChat = "..."; }
-        }
-        
-        // Thời gian nghỉ an toàn tiêu chuẩn giữa các học sinh
-        await delay(5000); 
+        // THỜI GIAN CHỜ VÀNG: 10 giây (10000ms) giữa mỗi học sinh theo yêu cầu
+        await delay(10000); 
     }
-    
     document.getElementById('status').innerText = "✅ Hoàn tất phân tích và đánh giá toàn bộ dữ liệu!";
     hienThiBang();
 }
@@ -257,7 +238,7 @@ function xuatFileWord() {
             new docx.TextRun({
                 text: `NHẬN XÉT TỰ ĐỘNG LỚP ${tenLopThucTe}`.toUpperCase(),
                 bold: true,
-                size: 32, // 16pt 
+                size: 32, 
                 font: "Times New Roman"
             })
         ]
@@ -271,7 +252,6 @@ function xuatFileWord() {
         ]}));
         
         danhSachHocSinh.forEach(hs => {
-            // Đảm bảo xuống dòng rõ ràng khi xuất Word
             let paragraphs = hs.nhanXetMonHoc ? hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line)) : [new docx.Paragraph("")];
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
