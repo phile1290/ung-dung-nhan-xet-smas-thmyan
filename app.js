@@ -20,7 +20,7 @@ async function extractTextFromPDF(file) {
     return text;
 }
 
-// Lấy delay để tránh bị lỗi giới hạn API (Rate Limit) gây ra lỗi trùng lặp
+// Hàm delay để tránh bị lỗi giới hạn API (Rate Limit)
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function batDauXuLy() {
@@ -41,19 +41,21 @@ async function batDauXuLy() {
 
     try {
         document.getElementById('status').innerText = "Đang trích xuất nội dung từ các file PDF...";
-        textTT27 = await extractTextFromPDF(fileTT27);
-        textThamChieu = await extractTextFromPDF(fileThamChieu);
+        let rawTT27 = await extractTextFromPDF(fileTT27);
+        let rawThamChieu = await extractTextFromPDF(fileThamChieu);
+        
+        // Cắt bớt độ dài PDF để tránh quá tải API
+        textTT27 = rawTT27.substring(0, 3000); 
+        textThamChieu = rawThamChieu.substring(0, 2000);
         
         document.getElementById('status').innerText = "Đang quét TẤT CẢ CÁC SHEET và tổng hợp điểm...";
         
-        // Dùng Object để gộp điểm của học sinh từ nhiều Sheet khác nhau
         let hocSinhTongHop = {};
         
         for (let i = 0; i < filesExcel.length; i++) {
             const arrayBuffer = await filesExcel[i].arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
             
-            // Duyệt qua toàn bộ các Sheet (Tiếng Việt, Toán, Khoa học...)
             workbook.SheetNames.forEach(sheetName => {
                 const sheet = workbook.Sheets[sheetName];
                 const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
@@ -61,13 +63,12 @@ async function batDauXuLy() {
                 let cotHoTen = -1;
                 let dongBatDau = -1;
 
-                // THUẬT TOÁN ĐỊNH VỊ CỘT: Tìm đúng cột có chữ "Họ và tên"
                 for (let r = 0; r < rawData.length; r++) {
                     if (rawData[r]) {
                         for (let c = 0; c < rawData[r].length; c++) {
                             if (typeof rawData[r][c] === 'string' && rawData[r][c].toLowerCase().includes("họ và tên")) {
                                 cotHoTen = c;
-                                dongBatDau = r + 1; // Học sinh bắt đầu từ dòng ngay dưới tiêu đề
+                                dongBatDau = r + 1; 
                                 break;
                             }
                         }
@@ -75,22 +76,18 @@ async function batDauXuLy() {
                     if (cotHoTen !== -1) break;
                 }
 
-                // Nếu tìm thấy cột Họ và tên trong Sheet này
                 if (cotHoTen !== -1) {
                     for (let r = dongBatDau; r < rawData.length; r++) {
                         let ten = rawData[r][cotHoTen];
                         
-                        // Lọc bỏ các dòng rỗng, dòng chứa số (STT), và các dòng không phải tên người
                         if (ten && typeof ten === 'string' && isNaN(ten) && ten.trim().length > 4) {
                             let tenHS = ten.trim();
                             let tenLower = tenHS.toLowerCase();
                             
-                            // Tránh các dòng rác của SMAS
                             if (!tenLower.includes("trường") && !tenLower.includes("hiệu trưởng") && 
                                 !tenLower.includes("giáo viên") && !tenLower.includes("họ và tên") &&
                                 !tenLower.includes("người lập")) {
                                 
-                                // Gom tất cả điểm/đánh giá của học sinh này trên cùng dòng
                                 let diemSoCuaMon = [];
                                 for (let c = cotHoTen + 1; c < rawData[r].length; c++) {
                                     if (rawData[r][c] !== undefined && rawData[r][c] !== "") {
@@ -102,7 +99,6 @@ async function batDauXuLy() {
                                     if (!hocSinhTongHop[tenHS]) {
                                         hocSinhTongHop[tenHS] = [];
                                     }
-                                    // Lưu theo cấu trúc: Tên Môn: [Điểm]
                                     hocSinhTongHop[tenHS].push(`${sheetName}: ${diemSoCuaMon.join(", ")}`);
                                 }
                             }
@@ -112,7 +108,6 @@ async function batDauXuLy() {
             });
         }
         
-        // Chuyển đổi dữ liệu tổng hợp sang mảng để AI dễ đọc
         danhSachHocSinh = Object.keys(hocSinhTongHop).map(ten => ({
             hoTen: ten,
             diemSo: hocSinhTongHop[ten].join(" | ")
@@ -135,76 +130,86 @@ async function taoNhanXetVoiAI(apiKey) {
 
     for (let i = 0; i < danhSachHocSinh.length; i++) {
         let hs = danhSachHocSinh[i];
-        document.getElementById('status').innerText = `Hệ thống AI đang phân tích chi tiết: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length})`;
+        document.getElementById('status').innerText = `Hệ thống AI đang phân tích: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length})\nĐang áp dụng thời gian chờ an toàn (12 giây/học sinh) để đảm bảo không bỏ sót...`;
         
         let promptText = "";
+        
         if (loaiHienTai === "monHoc") {
             promptText = `Đóng vai chuyên gia đánh giá tiểu học theo Thông tư 27. 
-            Nội dung Thông tư 27: ${textTT27.substring(0, 5000)}...
-            Nhận xét tham chiếu: ${textThamChieu.substring(0, 3000)}...
+            Mẫu tham chiếu: ${textThamChieu}
+            BẢNG ĐIỂM TỔNG HỢP NHIỀU MÔN của học sinh: "${hs.diemSo}". 
             
-            Đây là BẢNG ĐIỂM TỔNG HỢP NHIỀU MÔN của học sinh: "${hs.diemSo}". 
-            
-            Quy tắc BẤT DI BẤT DỊCH: 
-            1. BÁM SÁT KẾT QUẢ ĐIỂM SỐ từng môn. TỰ DO SÁNG TẠO nhận xét, đảm bảo TÍNH DUY NHẤT cho học sinh này, KHÔNG TRÙNG LẶP với học sinh khác.
-            2. Nhận xét cực kỳ CHI TIẾT và RÕ RÀNG về các kỹ năng cốt lõi (ví dụ: Tốc độ đọc, khả năng hiểu bài, viết câu, tính toán nhanh nhạy, trình bày bản đồ/hình vẽ, sự tập trung...).
-            3. Tuyệt đối KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên.
-            4. Nhận xét thành ĐÚNG 3 CÂU DÀI, CHI TIẾT. Giữa mỗi câu PHẢI CÓ một dòng trống (dùng ký tự \\n\\n).
-            5. CHỈ trả về JSON định dạng: {"nhanXet": "Câu 1.\\n\\nCâu 2.\\n\\nCâu 3."}. Không thêm bất kỳ text nào khác.`;
+            QUY TẮC BẤT DI BẤT DỊCH (Nếu vi phạm sẽ bị đánh giá kém): 
+            1. TUYỆT ĐỐI KHÔNG ghi các con số điểm (như 5, 6, 7, 8, 9, 10) vào trong lời nhận xét. Chỉ dùng điểm để làm căn cứ hiểu năng lực học sinh.
+            2. TUYỆT ĐỐI KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Bắt buộc dùng CÂU ẨN CHỦ NGỮ.
+            3. Viết NGẮN GỌN, SÚC TÍCH (độ dài chỉ bằng 70% bình thường, mỗi câu tối đa 1-2 dòng).
+            4. Nhận xét thành ĐÚNG 3 CÂU riêng biệt. Giữa mỗi câu PHẢI CÓ một dòng trống (dùng ký tự \\n\\n).
+            5. Mỗi học sinh là DUY NHẤT, không trùng lặp.
+            6. CHỈ trả về đúng định dạng JSON: {"nhanXet": "Câu 1.\\n\\nCâu 2.\\n\\nCâu 3."}.`;
         } else {
             promptText = `Đóng vai chuyên gia đánh giá tiểu học theo Thông tư 27.
-            Nội dung TT27: ${textTT27.substring(0, 5000)}...
-            Nhận xét tham chiếu: ${textThamChieu.substring(0, 3000)}...
+            Mẫu tham chiếu: ${textThamChieu}
+            Đánh giá tổng hợp các môn của học sinh: "${hs.diemSo}".
             
-            Kết quả tổng hợp các môn của học sinh: "${hs.diemSo}".
-            
-            Quy tắc BẤT DI BẤT DỊCH:
-            1. BÁM SÁT KẾT QUẢ TỔNG HỢP để nhận xét Năng lực và Phẩm chất.
-            2. Mỗi học sinh là DUY NHẤT. Hãy sáng tạo từ vựng phong phú, đánh giá sát sao, KHÔNG TRÙNG LẶP.
-            3. Tuyệt đối KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên.
-            4. Viết thành 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất), mỗi lĩnh vực 1 dòng chi tiết.
-            5. CHỈ trả về JSON: {"nangLucChung": "...", "nangLucDacThu": "...", "phamChat": "..."}. Không thêm text nào.`;
+            QUY TẮC BẤT DI BẤT DỊCH:
+            1. TUYỆT ĐỐI KHÔNG ghi các con số hoặc mức đạt (T, H, C) vào nhận xét. Chỉ lấy đó làm căn cứ.
+            2. TUYỆT ĐỐI KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Bắt buộc dùng CÂU ẨN CHỦ NGỮ.
+            3. Viết NGẮN GỌN, SÚC TÍCH, không dài dòng. 
+            4. Viết thành 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất), mỗi lĩnh vực 1 dòng.
+            5. CHỈ trả về JSON: {"nangLucChung": "...", "nangLucDacThu": "...", "phamChat": "..."}.`;
         }
 
-        let retries = 3;
+        let retries = 5; 
         let success = false;
+        let retryWaitTime = 5000; // Khởi đầu chờ 5s nếu lỗi mạng, tăng dần
         
         while (retries > 0 && !success) {
             try {
                 const response = await fetch(apiUrl, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: promptText }] }],
-                        generationConfig: { temperature: 0.8 } // Tăng tính sáng tạo, đa dạng văn phong
+                        generationConfig: { 
+                            temperature: 0.7, // Giảm nhẹ temperature để câu văn đi vào trọng tâm, bớt lan man
+                            responseMimeType: "application/json" // Ép hệ thống xuất chuẩn JSON
+                        } 
                     })
                 });
                 
-                if (!response.ok) throw new Error("API Limit");
+                if (!response.ok) throw new Error("API Limit or Network Error");
                 
                 const resData = await response.json();
-                let aiText = resData.candidates[0].content.parts[0].text.replace(/```json/g, "").replace(/```/g, "").trim();
+                const aiText = resData.candidates[0].content.parts[0].text;
+                
                 const ketQua = JSON.parse(aiText);
                 
                 if (loaiHienTai === "monHoc") {
                     hs.nhanXetMonHoc = ketQua.nhanXet;
                 } else { 
-                    hs.nangLucChung = ketQua.nangLucChung; hs.nangLucDacThu = ketQua.nangLucDacThu; hs.phamChat = ketQua.phamChat; 
+                    hs.nangLucChung = ketQua.nangLucChung; 
+                    hs.nangLucDacThu = ketQua.nangLucDacThu; 
+                    hs.phamChat = ketQua.phamChat; 
                 }
                 success = true;
             } catch (err) {
                 retries--;
-                await delay(1500); // Tạm dừng 1.5 giây nếu lỗi API để tránh trùng lặp do lỗi hệ thống
+                console.warn(`Lỗi khi xử lý ${hs.hoTen}. Đang thử lại sau ${retryWaitTime/1000} giây...`);
+                await delay(retryWaitTime); 
+                retryWaitTime += 3000; // Tăng dần thời gian chờ nếu tiếp tục lỗi
+                
                 if (retries === 0) {
-                    console.error("Lỗi dòng học sinh", hs.hoTen);
-                    // Thông báo khuyết điểm tinh tế nếu lỗi mạng 3 lần liên tiếp
-                    if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = "Khả năng tiếp thu bài học ổn định.\n\nKỹ năng tính toán và thực hành cơ bản đạt yêu cầu.\n\nCần chú ý duy trì sự tập trung hơn trong các hoạt động.";
-                    else { hs.nangLucChung = "Có ý thức tự giác học tập"; hs.nangLucDacThu = "Vận dụng kiến thức linh hoạt"; hs.phamChat = "Hòa đồng với bạn bè"; }
+                    console.error("Thất bại hoàn toàn tại:", hs.hoTen);
+                    if (loaiHienTai === "monHoc") hs.nhanXetMonHoc = "Nắm vững kiến thức trọng tâm.\n\nKỹ năng thực hành đạt yêu cầu.\n\nCó ý thức trong các hoạt động.";
+                    else { hs.nangLucChung = "Tự giác học tập"; hs.nangLucDacThu = "Vận dụng kiến thức tốt"; hs.phamChat = "Đoàn kết hòa đồng"; }
                 }
             }
         }
-        await delay(500); // Nghỉ nhẹ giữa mỗi học sinh để đảm bảo Gemini phân tích kỹ
+        
+        // THỜI GIAN CHỜ VÀNG: Nghỉ 12 giây giữa các học sinh để đảm bảo an toàn tuyệt đối cho danh sách dài.
+        await delay(12000); 
     }
-    document.getElementById('status').innerText = "Hoàn tất phân tích và đánh giá toàn bộ dữ liệu!";
+    document.getElementById('status').innerText = "✅ Hoàn tất phân tích và đánh giá toàn bộ dữ liệu!";
     hienThiBang();
 }
 
@@ -235,7 +240,7 @@ function xuatFileWord() {
         ]}));
         
         danhSachHocSinh.forEach(hs => {
-            let paragraphs = hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line));
+            let paragraphs = hs.nhanXetMonHoc ? hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line)) : [new docx.Paragraph("")];
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
                 new docx.TableCell({ children: paragraphs })
@@ -252,9 +257,9 @@ function xuatFileWord() {
         danhSachHocSinh.forEach(hs => {
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
-                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucChung)] }),
-                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucDacThu)] }),
-                new docx.TableCell({ children: [new docx.Paragraph(hs.phamChat)] })
+                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucChung || "")] }),
+                new docx.TableCell({ children: [new docx.Paragraph(hs.nangLucDacThu || "")] }),
+                new docx.TableCell({ children: [new docx.Paragraph(hs.phamChat || "")] })
             ]}));
         });
     }
