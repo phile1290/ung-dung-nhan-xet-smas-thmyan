@@ -23,24 +23,27 @@ async function extractTextFromPDF(file) {
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function batDauXuLy() {
-    const apiKey = document.getElementById('apiKey').value.trim();
-    const fileTT27 = document.getElementById('pdfTT27').files[0];
-    const fileThamChieu = document.getElementById('pdfThamChieu').files[0];
-    const filesExcel = document.getElementById('fileUpload').files;
-    const selectLoai = document.getElementById('loaiBangDiem');
-    
-    loaiHienTai = selectLoai.value;
-    tenLopThucTe = document.getElementById('tenLop').value.trim(); 
-    
-    const moTaLoai = selectLoai.options[selectLoai.selectedIndex].text;
-    tenTepXuat = `NhanXet_${tenLopThucTe ? tenLopThucTe + "_" : ""}${moTaLoai.replace(/ /g, "_")}.docx`;
-    document.getElementById('tenTepHienThi').innerText = tenTepXuat;
-
-    if (!apiKey || !fileTT27 || !fileThamChieu || filesExcel.length === 0 || !tenLopThucTe) {
-        return alert("Vui lòng nhập đầy đủ các trường (API Key, Tên lớp) và tải lên đầy đủ 3 loại tệp!");
-    }
-
     try {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const fileTT27 = document.getElementById('pdfTT27').files[0];
+        const fileThamChieu = document.getElementById('pdfThamChieu').files[0];
+        const filesExcel = document.getElementById('fileUpload').files;
+        const selectLoai = document.getElementById('loaiBangDiem');
+        
+        loaiHienTai = selectLoai.value;
+        
+        // Cập nhật cơ chế an toàn: Nếu không tìm thấy ô Tên lớp (do dùng HTML cũ), gán chuỗi rỗng để không bị lỗi ứng dụng
+        const tenLopInput = document.getElementById('tenLop');
+        tenLopThucTe = tenLopInput ? tenLopInput.value.trim() : "";
+        
+        const moTaLoai = selectLoai.options[selectLoai.selectedIndex].text;
+        tenTepXuat = `NhanXet_${tenLopThucTe ? tenLopThucTe + "_" : ""}${moTaLoai.replace(/ /g, "_")}.docx`;
+        document.getElementById('tenTepHienThi').innerText = tenTepXuat;
+
+        if (!apiKey || !fileTT27 || !fileThamChieu || filesExcel.length === 0) {
+            return alert("Vui lòng nhập API Key và tải lên đầy đủ các tệp dữ liệu!");
+        }
+
         document.getElementById('status').innerText = "Đang trích xuất và tối ưu hóa nội dung từ các file PDF...";
         let rawTT27 = await extractTextFromPDF(fileTT27);
         let rawThamChieu = await extractTextFromPDF(fileThamChieu);
@@ -123,13 +126,14 @@ async function batDauXuLy() {
 async function taoNhanXetVoiAI(apiKey) {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     
-    // THUẬT TOÁN GỘP NHÓM (BATCHING): Xử lý 5 học sinh cùng lúc để đạt tốc độ tối đa
+    // Gộp nhóm 5 học sinh 1 lần để tốc độ cực nhanh
     const BATCH_SIZE = 5;
 
     for (let i = 0; i < danhSachHocSinh.length; i += BATCH_SIZE) {
         const batch = danhSachHocSinh.slice(i, i + BATCH_SIZE);
         
-        document.getElementById('status').innerText = `Hệ thống AI đang xử lý nhóm ${Math.floor(i/BATCH_SIZE) + 1} (Học sinh ${i+1} đến ${i + batch.length}/${danhSachHocSinh.length})...`;
+        // THAY ĐỔI DÒNG CHỮ HIỂN THỊ THEO YÊU CẦU CỦA ANH
+        document.getElementById('status').innerText = `Ứng dụng đang xử lý (từ học sinh ${i+1} đến ${i + batch.length} / tổng ${danhSachHocSinh.length}), vui lòng đợi...`;
         
         let thongTinHocSinh = "";
         batch.forEach((hs) => {
@@ -153,7 +157,6 @@ async function taoNhanXetVoiAI(apiKey) {
             3. Viết NGẮN GỌN, SÚC TÍCH, đi thẳng vào vấn đề.
             4. Nội dung nhận xét phải tách thành ĐÚNG 3 CÂU riêng biệt. Giữa mỗi câu có ký tự xuống dòng kép (\\n\\n).`;
 
-            // Khóa chặt đầu ra, ép AI trả về mảng khớp đúng với tên học sinh
             jsonSchema = {
                 type: "ARRAY",
                 items: {
@@ -206,7 +209,7 @@ async function taoNhanXetVoiAI(apiKey) {
                         generationConfig: { 
                             temperature: 0.2, // Chống lan man, ép AI làm việc như cái máy chấm điểm
                             responseMimeType: "application/json",
-                            responseSchema: jsonSchema // Ràng buộc tuyệt đối cấu trúc
+                            responseSchema: jsonSchema 
                         } 
                     })
                 });
@@ -216,10 +219,8 @@ async function taoNhanXetVoiAI(apiKey) {
                 const resData = await response.json();
                 const aiText = resData.candidates[0].content.parts[0].text;
                 
-                // Parse kết quả mảng trả về
                 const ketQuaBatch = JSON.parse(aiText);
                 
-                // Ghép nối dữ liệu phân tích về đúng học sinh
                 ketQuaBatch.forEach(kq => {
                     let hsIndex = danhSachHocSinh.findIndex(h => h.hoTen.toLowerCase().trim() === kq.hoTen.toLowerCase().trim());
                     if (hsIndex !== -1) {
@@ -250,7 +251,6 @@ async function taoNhanXetVoiAI(apiKey) {
             }
         }
         
-        // Vì đã xử lý 5 em 1 lần, chỉ cần đợi 6 giây là đủ an toàn (Tiết kiệm thời gian cực lớn)
         await delay(6000); 
     }
     
