@@ -3,51 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="author" content="Lê Văn Phi">
+    <meta name="author" content="LÊ VĂN PHI">
     <title>Hệ Thống Tự Động Hóa Nhận Xét SMAS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/docx@7.3.0/build/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { margin: 0; padding: 20px; background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        body { 
+            margin: 0; padding: 20px; 
+            background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%);
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
         .header-title { color: #0066cc; text-align: center; font-size: 26px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
         .sub-title { color: #7f8c8d; text-align: center; font-size: 15px; margin-bottom: 25px; }
-        .card { background-color: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 30px; width: 100%; max-width: 650px; }
+        .card { background-color: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 30px; width: 100%; max-width: 600px; }
         .form-group { margin-bottom: 22px; }
-        label { font-weight: bold; color: #004085; background-color: #cce5ff; border: 1px solid #b8daff; padding: 8px 12px; border-radius: 6px; display: inline-block; margin-bottom: 10px; font-size: 14px; width: fit-content; }
-        .helper-text { font-size: 13px; color: #555; font-style: italic; margin-bottom: 8px; display: block; }
-        input[type="text"], input[type="password"], select, input[type="file"] { width: 100%; padding: 12px 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; outline: none; transition: 0.3s; }
+        
+        /* CSS kẻ khung và đổi màu chữ cho các mô tả nhập liệu */
+        label { 
+            font-weight: bold; 
+            color: #004085; 
+            background-color: #cce5ff; 
+            border: 1px solid #b8daff; 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            display: inline-block; 
+            margin-bottom: 10px; 
+            font-size: 14px;
+            width: fit-content;
+        }
+        
+        .helper-text { font-size: 12px; color: #666; font-style: italic; margin-bottom: 8px; display: block; }
+        input[type="text"], input[type="password"], select, input[type="file"] { 
+            width: 100%; padding: 12px 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; outline: none; transition: 0.3s;
+        }
         input:focus, select:focus { border-color: #0066cc; box-shadow: 0 0 5px rgba(0,102,204,0.3); }
         .btn-primary { background-color: #0066cc; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; padding: 15px; border-radius: 10px; margin-top: 10px; text-transform: uppercase; box-shadow: 0 4px 15px rgba(0,102,204,0.3); }
         .btn-primary:hover { background-color: #0052a3; }
         .btn-success { background-color: #28a745; margin-top: 20px; box-shadow: 0 4px 15px rgba(40,167,69,0.3); }
         .btn-success:hover { background-color: #218838; }
-        #status { text-align: center; font-weight: bold; margin-top: 15px; color: #e67e22; white-space: pre-line; }
+        #status { text-align: center; font-weight: bold; margin-top: 15px; color: #e67e22; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
         th { background-color: #f8f9fa; font-weight: bold; }
-        .pdf-group { border-left: 4px solid #ff9900; padding-left: 15px; background-color: #fffaf0; padding-top: 10px; padding-bottom: 1px; border-radius: 0 8px 8px 0; }
+        .pdf-group { border-left: 3px solid #ff9900; padding-left: 15px; }
     </style>
 </head>
 <body>
     <div class="header-title">Hệ Thống Tự Động Hóa<br>Nhận Xét SMAS</div>
-    <div class="sub-title">Ứng dụng được phát triển bởi thầy giáo<br>Lê Văn Phi</div>
+    <div class="sub-title">ứng dụng được phát triển bởi thầy giáo<br>LÊ VĂN PHI</div>
 
     <div class="card">
         <div class="form-group">
-            <label>1. Tên lớp học:</label>
-            <span class="helper-text">Nhập tên lớp (VD: 4D) để in hoa, căn giữa ở tiêu đề file Word.</span>
-            <input type="text" id="tenLop" placeholder="Nhập tên lớp...">
-        </div>
-
-        <div class="form-group">
-            <label>2. API Key (Google AI Studio):</label>
+            <label>1. API Key (Google AI Studio):</label>
             <input type="password" id="apiKey" placeholder="Nhập Gemini API Key...">
         </div>
 
         <div class="form-group">
-            <label>3. Cấu hình loại bảng điểm:</label>
+            <label>2. Cấu hình loại bảng điểm:</label>
             <select id="loaiBangDiem">
                 <option value="monHoc">Đánh giá môn học và hoạt động giáo dục</option>
                 <option value="nangLuc">Đánh giá năng lực và phẩm chất</option>
@@ -55,20 +69,20 @@
         </div>
 
         <div class="form-group pdf-group">
-            <label>4. Tải lên PDF Thông tư 27:</label>
+            <label>3. Tải lên PDF Thông tư 27:</label>
             <span class="helper-text">Ứng dụng sẽ đọc trực tiếp file PDF này để làm căn cứ đánh giá.</span>
             <input type="file" id="pdfTT27" accept=".pdf">
         </div>
 
         <div class="form-group pdf-group">
-            <label>5. Tải lên PDF Nhận xét tham chiếu:</label>
+            <label>4. Tải lên PDF Nhận xét tham chiếu:</label>
             <span class="helper-text">Mẫu nhận xét của khối tương ứng (chỉ dùng tham khảo văn phong).</span>
             <input type="file" id="pdfThamChieu" accept=".pdf">
         </div>
 
         <div class="form-group">
-            <label>6. Tải lên Bảng điểm SMAS (.xlsx, .xls):</label>
-            <span class="helper-text">Hỗ trợ chọn nhiều file cùng lúc. Hệ thống tự động lọc học sinh.</span>
+            <label>5. Tải lên Bảng điểm SMAS (.xlsx, .xls):</label>
+            <span class="helper-text">Có thể chọn nhiều file. Hệ thống tự động lọc bỏ tên trường, tên giáo viên...</span>
             <input type="file" id="fileUpload" accept=".xlsx, .xls" multiple>
         </div>
 
