@@ -122,7 +122,6 @@ async function batDauXuLy() {
     }
 }
 
-// Hàm khởi tạo khung bảng hiển thị (Chạy ngay trước khi phân tích)
 function khoiTaoBang() {
     document.getElementById('previewArea').style.display = 'block';
     const container = document.getElementById('tableContainer');
@@ -137,7 +136,6 @@ function khoiTaoBang() {
     container.innerHTML = html;
 }
 
-// Hàm thêm kết quả từng học sinh trực tiếp vào bảng (Hiển thị thời gian thực)
 function themKetQuaLenBang(hs) {
     const tbody = document.getElementById('noiDungBang');
     let tr = document.createElement('tr');
@@ -150,17 +148,26 @@ function themKetQuaLenBang(hs) {
     tbody.appendChild(tr);
 }
 
+// BỘ LỌC XỬ LÝ LỖI \n VÀ ÉP CÁCH HÀNG
+function xuLyVanBanNhanXet(vanBan) {
+    if (!vanBan) return "";
+    // Thay thế toàn bộ ký tự \n thô thành dấu xuống dòng thực tế
+    let textDaSua = vanBan.replace(/\\n/g, '\n'); 
+    // Tách thành mảng, loại bỏ các dòng trống thừa
+    let mangCau = textDaSua.split('\n').map(line => line.trim()).filter(line => line !== '');
+    // Nối lại bằng đúng 2 dấu xuống dòng để tạo 1 khoảng trắng ở giữa
+    return mangCau.join('\n\n'); 
+}
+
 async function taoNhanXetVoiAI(apiKey) {
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    // SỬ DỤNG MODEL 1.5 FLASH: Miễn phí 1500 lượt/ngày (Giải quyết triệt để lỗi Quota 20 lượt)
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
-    // Khởi tạo bảng ngay lập tức để giáo viên thấy danh sách bắt đầu chạy
     khoiTaoBang();
 
-    // XỬ LÝ TUẦN TỰ TỪNG HỌC SINH (KHÔNG GỘP NHÓM)
     for (let i = 0; i < danhSachHocSinh.length; i++) {
         let hs = danhSachHocSinh[i];
         
-        // Cập nhật trạng thái hiển thị rõ ràng, xuống dòng cho "Vui lòng đợi..."
         document.getElementById('status').style.color = "#0066cc";
         document.getElementById('status').innerText = `Ứng dụng đang xử lý chuyên sâu: ${hs.hoTen} (${i+1}/${danhSachHocSinh.length})\nVui lòng đợi...`;
         
@@ -174,11 +181,11 @@ async function taoNhanXetVoiAI(apiKey) {
             BẢNG ĐIỂM TỔNG HỢP CỦA HỌC SINH NÀY:
             [Họ và tên: ${hs.hoTen}] - Kết quả: ${hs.diemSo}
             
-            QUY TẮC BẤT DI BẤT DỊCH: 
+            QUY TẮC BẤT DI BẤT DỊCH TỪ GIÁO VIÊN: 
             1. TUYỆT ĐỐI KHÔNG ghi các con số điểm (như 7,8,9,10) vào nội dung nhận xét.
-            2. TUYỆT ĐỐI KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Bắt buộc dùng CÂU ẨN CHỦ NGỮ.
-            3. Viết NGẮN GỌN, SÚC TÍCH, đi thẳng vào vấn đề kỹ năng thực tế.
-            4. Nội dung nhận xét phải tách thành ĐÚNG 3 CÂU riêng biệt. Giữa mỗi câu có ký tự xuống dòng kép (\\n\\n).`;
+            2. TUYỆT ĐỐI KHÔNG sử dụng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Bắt buộc dùng CÂU ẨN CHỦ NGỮ.
+            3. Mỗi câu nhận xét phải viết CỰC KỲ CHI TIẾT, có chiều sâu, đánh giá đúng năng lực. MỖI CÂU PHẢI ĐẠT ĐỘ DÀI TỪ 30 ĐẾN 40 TỪ.
+            4. Nội dung nhận xét phải được tách thành ĐÚNG 3 CÂU riêng biệt. Giữa mỗi câu dùng ký tự xuống dòng.`;
 
             jsonSchema = {
                 type: "OBJECT",
@@ -194,8 +201,9 @@ async function taoNhanXetVoiAI(apiKey) {
             
             QUY TẮC BẤT DI BẤT DỊCH:
             1. TUYỆT ĐỐI KHÔNG ghi con số điểm hoặc mức T,H,C vào nhận xét.
-            2. TUYỆT ĐỐI KHÔNG sử dụng các từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân, người học. Bắt buộc dùng CÂU ẨN CHỦ NGỮ.
-            3. Viết NGẮN GỌN, SÚC TÍCH. Phân ra 3 lĩnh vực, mỗi lĩnh vực đúng 1 dòng ngắn.`;
+            2. TUYỆT ĐỐI KHÔNG sử dụng đại từ: thầy, cô, giáo viên, học sinh, em, bạn, họ tên, cá nhân, bản thân. Bắt buộc dùng CÂU ẨN CHỦ NGỮ.
+            3. Viết phân tích CHI TIẾT, SÂU SẮC, ĐỘ DÀI TỪ 30 ĐẾN 40 TỪ cho mỗi lĩnh vực.
+            4. Phân ra 3 lĩnh vực (Năng lực chung, Năng lực đặc thù, Phẩm chất).`;
 
             jsonSchema = {
                 type: "OBJECT",
@@ -220,7 +228,7 @@ async function taoNhanXetVoiAI(apiKey) {
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: promptText }] }],
                         generationConfig: { 
-                            temperature: 0.3, // Thông số chuẩn nhất cho độ chính xác cao
+                            temperature: 0.7, 
                             responseMimeType: "application/json",
                             responseSchema: jsonSchema
                         } 
@@ -229,16 +237,15 @@ async function taoNhanXetVoiAI(apiKey) {
                 
                 if (!response.ok) {
                     const errDetail = await response.json();
-                    throw new Error(errDetail.error?.message || "Lỗi đường truyền mạng");
+                    throw new Error(errDetail.error?.message || "Lỗi đường truyền hoặc Quá tải API");
                 }
                 
                 const resData = await response.json();
                 const aiText = resData.candidates[0].content.parts[0].text;
-                
                 const ketQua = JSON.parse(aiText);
                 
                 if (loaiHienTai === "monHoc") {
-                    hs.nhanXetMonHoc = ketQua.nhanXet;
+                    hs.nhanXetMonHoc = xuLyVanBanNhanXet(ketQua.nhanXet);
                 } else {
                     hs.nangLucChung = ketQua.nangLucChung;
                     hs.nangLucDacThu = ketQua.nangLucDacThu;
@@ -249,36 +256,31 @@ async function taoNhanXetVoiAI(apiKey) {
             } catch (err) {
                 lastError = err.message;
                 retries--;
-                document.getElementById('status').style.color = "#dc3545"; // Đổi màu đỏ khi gặp lỗi
+                document.getElementById('status').style.color = "#dc3545"; 
                 document.getElementById('status').innerText = `⚠️ Mạng nghẽn tại: ${hs.hoTen}.\nĐang thử lại... Vui lòng đợi...`;
                 await delay(4000); 
             }
         }
         
-        // HIỂN THỊ LỖI LÊN MÀN HÌNH NGAY LẬP TỨC NẾU THẤT BẠI
         if (!success) {
             console.error("Gặp lỗi mạng với:", hs.hoTen, lastError);
             if (loaiHienTai === "monHoc") {
-                hs.nhanXetMonHoc = `[❌ Lỗi xử lý do nghẽn mạng Google API]\n\n[Chi tiết lỗi: ${lastError}]\n\n[Vui lòng xử lý lại em này]`;
+                hs.nhanXetMonHoc = `[❌ Lỗi xử lý API]\n\n[Chi tiết: ${lastError}]\n\n[Vui lòng xử lý lại em này]`;
             } else { 
-                hs.nangLucChung = "[❌ Lỗi xử lý API]"; 
+                hs.nangLucChung = "[❌ Lỗi API]"; 
                 hs.nangLucDacThu = "[Nghẽn mạng]"; 
                 hs.phamChat = "[Vui lòng xử lý lại]"; 
             }
-            // Đưa thông báo đỏ nhấp nháy trên Status
             document.getElementById('status').style.color = "#dc3545";
             document.getElementById('status').innerText = `❌ Lỗi phân tích: ${hs.hoTen}.\nỨng dụng tự động chuyển sang học sinh tiếp theo...`;
         }
         
-        // Hiện kết quả của học sinh này lên bảng ngay lập tức
         themKetQuaLenBang(hs);
-        
-        // Thời gian nghỉ an toàn giữa mỗi học sinh
-        await delay(8000); 
+        await delay(5000); // Rút ngắn thời gian nghỉ an toàn do model 1.5 flash cho phép tần suất gọi cao hơn
     }
     
-    document.getElementById('status').style.color = "#28a745"; // Màu xanh lá khi thành công
-    document.getElementById('status').innerText = "✅ Hoàn tất phân tích dữ liệu một cách Nhanh chóng và Chính xác!";
+    document.getElementById('status').style.color = "#28a745"; 
+    document.getElementById('status').innerText = "✅ Hoàn tất phân tích dữ liệu chuyên sâu!";
 }
 
 function xuatFileWord() {
@@ -303,7 +305,17 @@ function xuatFileWord() {
         ]}));
         
         danhSachHocSinh.forEach(hs => {
-            let paragraphs = hs.nhanXetMonHoc ? hs.nhanXetMonHoc.split('\n').map(line => new docx.Paragraph(line)) : [new docx.Paragraph("")];
+            // Tách theo \n\n để chèn đoạn trắng thực tế vào Word
+            let parts = hs.nhanXetMonHoc ? hs.nhanXetMonHoc.split('\n\n') : [""];
+            let paragraphs = [];
+            parts.forEach((p, index) => {
+                paragraphs.push(new docx.Paragraph(p));
+                // Nếu chưa phải đoạn cuối cùng, chèn thêm 1 đoạn rỗng để tạo khoảng cách hàng chuẩn xác
+                if (index < parts.length - 1) {
+                    paragraphs.push(new docx.Paragraph("")); 
+                }
+            });
+
             rows.push(new docx.TableRow({ children: [
                 new docx.TableCell({ children: [new docx.Paragraph(hs.hoTen)] }),
                 new docx.TableCell({ children: paragraphs })
