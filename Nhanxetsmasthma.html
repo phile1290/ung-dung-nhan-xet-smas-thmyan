@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Lê Văn Phi">
+    <title>Hệ Thống Tự Động Hóa Nhận Xét SMAS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/docx@7.3.0/build/index.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { margin: 0; padding: 20px; background: linear-gradient(180deg, #e6deff 0%, #c4d7ff 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .header-title { color: #0066cc; text-align: center; font-size: 28px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
+        .sub-title { color: #7f8c8d; text-align: center; font-size: 15px; margin-bottom: 25px; }
+        .card { background-color: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 30px; width: 100%; max-width: 600px; }
+        .form-group { margin-bottom: 20px; }
+        label { font-weight: bold; color: #004085; background-color: #cce5ff; border: 1px solid #b8daff; padding: 8px 12px; border-radius: 6px; display: inline-block; margin-bottom: 10px; font-size: 14px; }
+        .helper-text { font-size: 13px; color: #555; font-style: italic; margin-bottom: 8px; display: block; }
+        input[type="text"], select, input[type="file"] { width: 100%; padding: 12px 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; outline: none; transition: 0.3s; }
+        input:focus, select:focus { border-color: #0066cc; box-shadow: 0 0 5px rgba(0,102,204,0.3); }
+        .btn-primary { background-color: #0066cc; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; padding: 15px; border-radius: 10px; margin-top: 10px; text-transform: uppercase; }
+        .btn-primary:hover { background-color: #0052a3; }
+        .btn-success { background-color: #28a745; margin-top: 20px; }
+        .btn-success:hover { background-color: #218838; }
+        #status { text-align: center; font-weight: bold; margin-top: 15px; color: #0066cc; font-size: 16px; white-space: pre-line; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; line-height: 1.8; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header-title">Hệ Thống Tự Động Hóa<br>Nhận Xét SMAS</div>
+    <div class="sub-title">Ứng dụng được phát triển bởi thầy giáo<br>Lê Văn Phi</div>
+    <div class="card">
+        <div class="form-group">
+            <label>1. Tên lớp học:</label>
+            <input type="text" id="tenLop" placeholder="Nhập tên lớp (VD: 4D)...">
+        </div>
+
+        <div class="form-group">
+            <label>2. Chọn Khối Lớp:</label>
+            <select id="khoiLop">
+                <option value="khoi1">Khối 1</option>
+                <option value="khoi2">Khối 2</option>
+                <option value="khoi3">Khối 3</option>
+                <option value="khoi4">Khối 4</option>
+                <option value="khoi5">Khối 5</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>3. Cấu hình loại bảng điểm:</label>
+            <select id="loaiBangDiem">
+                <option value="monHoc">Đánh giá môn học và hoạt động giáo dục</option>
+                <option value="nangLuc">Đánh giá năng lực và phẩm chất</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>4. Tải lên Bảng điểm SMAS (.xlsx, .xls):</label>
+            <span class="helper-text">Hệ thống xử lý ngoại tuyến chính xác tuyệt đối. (Đã gỡ bỏ giới hạn ký tự, tự động tách 4 cột).</span>
+            <input type="file" id="fileUpload" accept=".xlsx, .xls" multiple>
+        </div>
+
+        <button class="btn-primary" onclick="batDauXuLy()">Bắt Đầu Phân Tích Dữ Liệu</button>
+        <div id="status"></div>
+    </div>
+
+    <div class="card" id="previewArea" style="display: none; margin-top: 20px; max-width: 1200px; width: 100%;">
+        <h3 style="text-align: center; color: #333;">Tệp sẽ tải về: <span id="tenTepHienThi" style="color: #0066cc;"></span></h3>
+        <div id="tableContainer" style="overflow-x: auto;"></div>
+        <button class="btn-primary btn-success" onclick="xuatFileWord()">Tải Về File Word</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
